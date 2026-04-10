@@ -243,10 +243,12 @@ function parseCSV(text) {
   }).filter(p=>p.apn);
 }
 
+async function loadData() {
   document.getElementById('table-wrap').innerHTML='<div class="loading">Loading parcels from Google Sheets…</div>';
   try {
     const proxy='https://corsproxy.io/?'+encodeURIComponent(SHEET_CSV_URL+'&t='+Date.now());
     const res=await fetch(proxy);
+    if(!res.ok) throw new Error('fetch failed');
     const text=await res.text();
     allParcels=parseCSV(text);
     document.getElementById('last-updated').textContent='Updated '+new Date().toLocaleTimeString();
@@ -257,6 +259,9 @@ function parseCSV(text) {
     document.getElementById('table-wrap').innerHTML='<div class="loading" style="color:#b91c1c">⚠ Could not load data. Try refreshing.</div>';
   }
 }
+
+initMap();
+loadData();
 </script>
 </body>
 </html>
