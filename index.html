@@ -243,39 +243,20 @@ function parseCSV(text) {
   }).filter(p=>p.apn);
 }
 
-function handleCSVFile(inp) {
-  const f=inp.files[0]; if(!f) return;
-  const reader=new FileReader();
-  reader.onload=e=>{
-    allParcels=parseCSV(e.target.result);
-    document.getElementById('csv-status').textContent=`✓ ${allParcels.length.toLocaleString()} parcels loaded from ${f.name}`;
-    document.getElementById('csv-drop').style.background='#f0fdf4';
-    document.getElementById('csv-drop').style.borderColor='#10b981';
-    document.getElementById('last-updated').textContent='Loaded '+new Date().toLocaleTimeString();
+  document.getElementById('table-wrap').innerHTML='<div class="loading">Loading parcels from Google Sheets…</div>';
+  try {
+    const proxy='https://corsproxy.io/?'+encodeURIComponent(SHEET_CSV_URL+'&t='+Date.now());
+    const res=await fetch(proxy);
+    const text=await res.text();
+    allParcels=parseCSV(text);
+    document.getElementById('last-updated').textContent='Updated '+new Date().toLocaleTimeString();
     populateFilters();
     renderMarkers();
     applyFilters();
-  };
-  reader.readAsText(f);
+  } catch(e) {
+    document.getElementById('table-wrap').innerHTML='<div class="loading" style="color:#b91c1c">⚠ Could not load data. Try refreshing.</div>';
+  }
 }
-
-// drag and drop support
-document.addEventListener('DOMContentLoaded',()=>{
-  const drop=document.getElementById('csv-drop');
-  drop.addEventListener('dragover',e=>{e.preventDefault();drop.style.background='#fef3c7';});
-  drop.addEventListener('dragleave',()=>{drop.style.background='#fff8e1';});
-  drop.addEventListener('drop',e=>{
-    e.preventDefault();
-    const f=e.dataTransfer.files[0];
-    if(f&&f.name.endsWith('.csv')){
-      const dt=new DataTransfer(); dt.items.add(f);
-      document.getElementById('csvFile').files=dt.files;
-      handleCSVFile(document.getElementById('csvFile'));
-    }
-  });
-});
-
-initMap();
 </script>
 </body>
 </html>
