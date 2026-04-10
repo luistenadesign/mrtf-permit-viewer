@@ -187,7 +187,7 @@ function renderTable(data) {
 function renderStats(data) {
   const counts={};
   data.forEach(p=>{const k=(p.status||'unknown').toLowerCase();counts[k]=(counts[k]||0)+1;});
-  const order=[["no application","#ef4444"],["applied","#f59e0b"],["permitted","#10b981"],["demolition","#3b82f6"],["construction","#8b5cf6"],["unknown","#9ca3af"]];
+  const order=[["no application","#ef4444"],["applied","#f59e0b"],["permitted","#10b981"],["demolition","#3b82f6"],["construction","#8b5cf6"]];
   document.getElementById('stats-bar').innerHTML=order.filter(([k])=>counts[k]).map(([k,c])=>
     `<div class="stat-chip"><div class="dot" style="background:${c}"></div><span class="stat-num">${counts[k]}</span>&nbsp;${k}</div>`
   ).join('');
