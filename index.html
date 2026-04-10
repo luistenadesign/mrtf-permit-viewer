@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>MRTF Permit Tracker</title>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"/>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
+<style>
+* { box-sizing:border-box; margin:0; padding:0; }
+body { font-family:'Helvetica Neue',Arial,sans-serif; background:#f4f1ec; color:#2c2c2c; height:100vh; display:flex; flex-direction:column; }
+header { background:#1a3a4a; color:#fff; padding:9px 16px; display:flex; align-items:center; justify-content:space-between; gap:8px; flex-wrap:wrap; flex-shrink:0; }
+header h1 { font-size:14px; font-weight:600; letter-spacing:.4px; }
+.hdr-right { display:flex; gap:6px; align-items:center; }
+.reload-btn { font-size:11px; background:#2a5a6a; color:#fff; border:none; border-radius:4px; padding:4px 10px; cursor:pointer; }
+.reload-btn:hover { background:#3a7a8a; }
+#filter-bar { background:#1a3a4a; border-top:1px solid rgba(255,255,255,0.1); padding:5px 14px 7px; display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+#filter-bar label { font-size:10px; color:rgba(255,255,255,0.6); text-transform:uppercase; letter-spacing:.4px; margin-right:2px; }
+#filter-bar select { font-size:11px; padding:3px 7px; border-radius:4px; border:none; background:rgba(255,255,255,0.12); color:#fff; cursor:pointer; outline:none; }
+#filter-bar select option { background:#1a3a4a; }
+#map { flex:0 0 52vh; width:100%; z-index:1; position:relative; }
+#legend { position:absolute; top:10px; right:10px; background:rgba(255,255,255,0.96); border-radius:6px; padding:8px 12px; font-size:11px; z-index:999; box-shadow:0 1px 6px rgba(0,0,0,0.15); line-height:2; }
+#legend strong { display:block; margin-bottom:2px; font-size:9px; text-transform:uppercase; letter-spacing:.5px; color:#888; }
+.leg { display:flex; align-items:center; gap:7px; }
+.dot { width:11px; height:11px; border-radius:50%; flex-shrink:0; border:1.5px solid rgba(0,0,0,0.18); }
+#stats-bar { background:#fff; border-bottom:1px solid #e8e4de; padding:6px 14px; display:flex; gap:12px; flex-wrap:wrap; flex-shrink:0; }
+.stat-chip { display:flex; align-items:center; gap:5px; font-size:11px; color:#555; }
+.stat-chip .dot { width:9px; height:9px; }
+.stat-num { font-weight:700; color:#1a3a4a; }
+#list-section { flex:1 1 0; overflow-y:auto; background:#fff; border-top:2px solid #1a3a4a; }
+#search-bar { position:sticky; top:0; background:#fff; border-bottom:1px solid #e0ddd7; padding:7px 12px; z-index:10; display:flex; gap:8px; align-items:center; }
+#search-bar input { flex:1; border:1px solid #ccc; border-radius:4px; padding:5px 9px; font-size:12px; outline:none; }
+#search-bar input:focus { border-color:#1a3a4a; }
+#record-count { font-size:11px; color:#888; white-space:nowrap; }
+#last-updated { font-size:10px; color:#bbb; padding:2px 14px 3px; }
+table { width:100%; border-collapse:collapse; font-size:12px; }
+thead th { background:#f0ede7; padding:6px 10px; text-align:left; font-size:10px; text-transform:uppercase; letter-spacing:.4px; color:#666; position:sticky; top:40px; z-index:5; border-bottom:1px solid #ddd; white-space:nowrap; }
+tbody tr { border-bottom:1px solid #f0ede7; cursor:pointer; transition:background .12s; }
+tbody tr:hover { background:#faf7f2; }
+tbody tr.highlighted { background:#fff3cd !important; }
+td { padding:6px 10px; vertical-align:middle; }
+td.apn { font-family:monospace; color:#666; font-size:10px; white-space:nowrap; }
+td.address { font-weight:500; }
+td.owner { color:#555; font-size:11px; }
+.badge { display:inline-block; padding:2px 7px; border-radius:10px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.3px; white-space:nowrap; }
+.s-none { background:#fde8e8; color:#b91c1c; }
+.s-applied { background:#fef3c7; color:#92400e; }
+.s-permitted { background:#d1fae5; color:#065f46; }
+.s-demolition { background:#e0f2fe; color:#075985; }
+.s-construction { background:#ede9fe; color:#5b21b6; }
+.s-unknown { background:#f3f4f6; color:#6b7280; }
+.loading { text-align:center; padding:30px; color:#999; font-size:13px; }
+</style>
+</head>
+<body>
+
+<header>
+  <h1>🔥 MRTF — Malibu Palisades Rebuild Permit Tracker</h1>
+  <div class="hdr-right">
+    <span id="last-updated" style="font-size:10px;opacity:.5;"></span>
+    <button class="reload-btn" onclick="loadData()">↺ Refresh</button>
+  </div>
+</header>
+
+<div id="filter-bar">
+  <label>Ambassador:</label>
+  <select id="f-ambassador" onchange="applyFilters()"><option value="">All Ambassadors</option></select>
+  <label style="margin-left:8px">Status:</label>
+  <select id="f-status" onchange="applyFilters()"><option value="">All Statuses</option></select>
+</div>
+
+<div id="map">
+  <div id="legend">
+    <strong>Permit Status</strong>
+    <div class="leg"><div class="dot" style="background:#10b981"></div>Permitted</div>
+    <div class="leg"><div class="dot" style="background:#8b5cf6"></div>Under Construction</div>
+  </div>
+</div>
+
+<div id="stats-bar"></div>
+
+<div id="csv-drop" style="background:#fff8e1;border-top:2px dashed #f59e0b;padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;cursor:pointer" onclick="document.getElementById('csvFile').click()">
+  <input type="file" id="csvFile" accept=".csv" style="display:none" onchange="handleCSVFile(this)"/>
+  <span style="font-size:18px">📂</span>
+  <div>
+    <div style="font-size:12px;font-weight:600;color:#92400e">Load your CSV — click here or drag &amp; drop</div>
+    <div style="font-size:10px;color:#b45309" id="csv-status">No file loaded — drop MRTF_Parcels_Merged.csv here</div>
+  </div>
+</div>
+
+<div id="list-section">
+  <div id="search-bar">
+    <input type="text" id="search" placeholder="Search address, APN, owner, ambassador…" oninput="applyFilters()"/>
+    <span id="record-count"></span>
+  </div>
+  <div id="table-wrap"><div class="loading">Load your CSV above to see parcels…</div></div>
+</div>
+
+<script>
+const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQ6CaSItN1ctobH8NfdYzIlha6xd_LwNR6OpSYdS7WvWcJ1wq0qq0HdUH5rMfmHm8eKpbp2Ic6oViK3/pub?gid=678670005&single=true&output=csv";
+const MALIBU = [34.036, -118.735];
+
+const STATUS_COLOR = {"no application":"#ef4444","applied":"#f59e0b","permitted":"#10b981","demolition":"#3b82f6","construction":"#8b5cf6","unknown":"#9ca3af"};
+const STATUS_CLASS = {"no application":"s-none","applied":"s-applied","permitted":"s-permitted","demolition":"s-demolition","construction":"s-construction","unknown":"s-unknown"};
+
+let allParcels=[], filteredParcels=[], markers={}, selectedApn=null, map;
+let sortCol=null, sortDir=1;
+
+function initMap() {
+  map = L.map('map').setView(MALIBU, 12);
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png',{
+    attribution:'© OpenStreetMap © CARTO', maxZoom:19
+  }).addTo(map);
+}
+
+const colorFor = s => STATUS_COLOR[(s||"").toLowerCase()] || "#9ca3af";
+const classFor = s => STATUS_CLASS[(s||"").toLowerCase()] || "s-unknown";
+
+function makeIcon(p, selected=false) {
+  const c=colorFor(p.status), sz=selected?18:13, b=selected?'3px solid #1a3a4a':'2px solid rgba(0,0,0,0.2)';
+  return L.divIcon({className:'',html:`<div style="width:${sz}px;height:${sz}px;border-radius:50%;background:${c};border:${b};box-shadow:0 1px 5px rgba(0,0,0,0.3)"></div>`,iconSize:[sz,sz],iconAnchor:[sz/2,sz/2]});
+}
+
+function renderMarkers() {
+  Object.values(markers).forEach(m=>map.removeLayer(m));
+  markers={};
+  allParcels.forEach(p=>{
+    if(!p.lat||!p.lng) return;
+    const s=(p.status||'').toLowerCase();
+    if(!s||s==='unknown') return; // hide unknowns from map
+    const m=L.marker([p.lat,p.lng],{icon:makeIcon(p)}).addTo(map);
+    m.bindTooltip(`<b>${p.address}</b><br><span style="font-size:10px">${p.owner||''}</span><br><b>${p.status||'Unknown'}</b>`,{direction:'top',offset:[0,-8]});
+    m.on('click',()=>selectParcel(p.apn,false));
+    markers[p.apn]=m;
+  });
+}
+
+function selectParcel(apn, fromList) {
+  selectedApn=apn;
+  Object.entries(markers).forEach(([a,m])=>{
+    const p=allParcels.find(x=>x.apn===a);
+    m.setIcon(makeIcon(p,a===apn));
+    if(a===apn) m.bringToFront();
+  });
+  if(!fromList&&markers[apn]) map.panTo(markers[apn].getLatLng());
+  document.querySelectorAll('tbody tr').forEach(r=>r.classList.toggle('highlighted',r.dataset.apn===apn));
+  const row=document.querySelector(`tr[data-apn="${apn}"]`);
+  if(row) row.scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function sortBy(col) {
+  if(sortCol===col) sortDir*=-1; else {sortCol=col;sortDir=1;}
+  filteredParcels.sort((a,b)=>{
+    const av=(a[col]||'').toString().toLowerCase();
+    const bv=(b[col]||'').toString().toLowerCase();
+    return av<bv?-sortDir:av>bv?sortDir:0;
+  });
+  renderTable(filteredParcels);
+}
+
+function renderTable(data) {
+  const wrap=document.getElementById('table-wrap');
+  if(!data.length){wrap.innerHTML='<div class="loading">No parcels match your filters.</div>';return;}
+  const arrow=k=>sortCol===k?(sortDir===1?' ↑':' ↓'):'';
+  let h=`<table><thead><tr>
+    <th onclick="sortBy('apn')" style="cursor:pointer">APN${arrow('apn')}</th>
+    <th onclick="sortBy('address')" style="cursor:pointer">Address${arrow('address')}</th>
+    <th onclick="sortBy('ambassador')" style="cursor:pointer">Ambassador${arrow('ambassador')}</th>
+    <th onclick="sortBy('status')" style="cursor:pointer">Status${arrow('status')}</th>
+    <th>Notes</th>
+  </tr></thead><tbody>`;
+  data.forEach(p=>{
+    h+=`<tr data-apn="${p.apn}" onclick="selectParcel('${p.apn}',true)">
+      <td class="apn">${p.apn}</td>
+      <td class="address">${p.address}</td>
+      <td>${p.ambassador||'—'}</td>
+      <td><span class="badge ${classFor(p.status)}">${p.status||'Unknown'}</span></td>
+      <td style="color:#888;font-size:11px">${p.notes||''}</td>
+    </tr>`;
+  });
+  h+='</tbody></table>';
+  wrap.innerHTML=h;
+  document.getElementById('record-count').textContent=`${data.length} parcel${data.length!==1?'s':''}`;
+  if(selectedApn) document.querySelectorAll('tbody tr').forEach(r=>r.classList.toggle('highlighted',r.dataset.apn===selectedApn));
+}
+
+function renderStats(data) {
+  const counts={};
+  data.forEach(p=>{const k=(p.status||'unknown').toLowerCase();counts[k]=(counts[k]||0)+1;});
+  const order=[["no application","#ef4444"],["applied","#f59e0b"],["permitted","#10b981"],["demolition","#3b82f6"],["construction","#8b5cf6"],["unknown","#9ca3af"]];
+  document.getElementById('stats-bar').innerHTML=order.filter(([k])=>counts[k]).map(([k,c])=>
+    `<div class="stat-chip"><div class="dot" style="background:${c}"></div><span class="stat-num">${counts[k]}</span>&nbsp;${k}</div>`
+  ).join('');
+}
+
+function populateFilters() {
+  const ambs=[...new Set(allParcels.map(p=>p.ambassador).filter(Boolean))].sort();
+  const stats=[...new Set(allParcels.map(p=>p.status||'Unknown'))].sort();
+  document.getElementById('f-ambassador').innerHTML='<option value="">All Ambassadors</option>'+ambs.map(a=>`<option>${a}</option>`).join('');
+  document.getElementById('f-status').innerHTML='<option value="">All Statuses</option>'+stats.map(s=>`<option>${s}</option>`).join('');
+}
+
+function applyFilters() {
+  const q=document.getElementById('search').value.toLowerCase().trim();
+  const amb=document.getElementById('f-ambassador').value;
+  const sta=document.getElementById('f-status').value;
+  filteredParcels=allParcels.filter(p=>{
+    if(amb&&p.ambassador!==amb) return false;
+    if(sta&&(p.status||'Unknown')!==sta) return false;
+    if(q&&![(p.apn||''),(p.address||''),(p.owner||''),(p.ambassador||''),(p.status||''),(p.notes||'')].some(v=>v.toLowerCase().includes(q))) return false;
+    return true;
+  });
+  renderTable(filteredParcels);
+  renderStats(filteredParcels);
+}
+
+function parseCSV(text) {
+  const lines=text.replace(/\r\n/g,'\n').replace(/\r/g,'\n').split('\n');
+  const out=[];
+  for(let i=0;i<lines.length;i++){
+    if(!lines[i].trim()) continue;
+    const row=[];let cur='',inQ=false;
+    for(let j=0;j<lines[i].length;j++){
+      const c=lines[i][j];
+      if(c==='"'){if(inQ&&lines[i][j+1]==='"'){cur+='"';j++;}else inQ=!inQ;}
+      else if(c===','&&!inQ){row.push(cur.trim());cur='';}
+      else cur+=c;
+    }
+    row.push(cur.trim());
+    out.push(row);
+  }
+  const hdrs=out[0].map(h=>h.replace(/^"|"$/g,'').trim());
+  return out.slice(1).filter(r=>r.some(v=>v)).map(r=>{
+    const obj={};
+    hdrs.forEach((h,i)=>obj[h]=(r[i]||'').replace(/^"|"$/g,'').trim());
+    const get=(...keys)=>{for(const k of keys){const f=Object.keys(obj).find(x=>x.toLowerCase()===k.toLowerCase());if(f&&obj[f])return obj[f];}return '';};
+    return {
+      apn:get('APN'), address:get('Address'), owner:get('Owner'),
+      ambassador:get('Ambassador'), status:get('Status')||'Unknown',
+      lat:parseFloat(get('Lat'))||null, lng:parseFloat(get('Lng'))||null,
+      notes:get('Notes'),
+    };
+  }).filter(p=>p.apn);
+}
+
+function handleCSVFile(inp) {
+  const f=inp.files[0]; if(!f) return;
+  const reader=new FileReader();
+  reader.onload=e=>{
+    allParcels=parseCSV(e.target.result);
+    document.getElementById('csv-status').textContent=`✓ ${allParcels.length.toLocaleString()} parcels loaded from ${f.name}`;
+    document.getElementById('csv-drop').style.background='#f0fdf4';
+    document.getElementById('csv-drop').style.borderColor='#10b981';
+    document.getElementById('last-updated').textContent='Loaded '+new Date().toLocaleTimeString();
+    populateFilters();
+    renderMarkers();
+    applyFilters();
+  };
+  reader.readAsText(f);
+}
+
+// drag and drop support
+document.addEventListener('DOMContentLoaded',()=>{
+  const drop=document.getElementById('csv-drop');
+  drop.addEventListener('dragover',e=>{e.preventDefault();drop.style.background='#fef3c7';});
+  drop.addEventListener('dragleave',()=>{drop.style.background='#fff8e1';});
+  drop.addEventListener('drop',e=>{
+    e.preventDefault();
+    const f=e.dataTransfer.files[0];
+    if(f&&f.name.endsWith('.csv')){
+      const dt=new DataTransfer(); dt.items.add(f);
+      document.getElementById('csvFile').files=dt.files;
+      handleCSVFile(document.getElementById('csvFile'));
+    }
+  });
+});
+
+initMap();
+</script>
+</body>
+</html>
