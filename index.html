@@ -325,10 +325,18 @@ function renderMarkers(){
     if(!sk||sk==="unknown") return;
     const c=scolor(p.status);
     const sel=p.apn===selectedApn;
+    // Invisible large hit target underneath
+    const hit=L.circleMarker([p.lat,p.lng],{
+      radius:14, fillColor:"transparent",
+      color:"transparent", weight:0, fillOpacity:0, interactive:true
+    });
+    hit.on("click",()=>{selectedApn=p.apn;renderMarkers();showPopup([p.lat,p.lng],p);highlightRow(p.apn);});
+    dotsGroup.addLayer(hit);
+    // Visible dot on top
     const m=L.circleMarker([p.lat,p.lng],{
-      radius:sel?8:5, fillColor:c,
+      radius:sel?8:6, fillColor:c,
       color:sel?"#fff":"rgba(0,0,0,0.15)",
-      weight:sel?2:1, fillOpacity:0.95
+      weight:sel?2:1, fillOpacity:0.95, interactive:false
     });
     m.on("click",()=>{selectedApn=p.apn;renderMarkers();showPopup([p.lat,p.lng],p);highlightRow(p.apn);});
     markers[p.apn]=m; dotsGroup.addLayer(m);
@@ -486,6 +494,12 @@ async function loadData(){
     document.getElementById("updated").textContent="updated "+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
     populateFilters();
     applyFilters();
+    // Fit map to dots that have coordinates
+    const pts = allParcels.filter(p=>p.lat&&p.lng).map(p=>[p.lat,p.lng]);
+    if(pts.length) {
+      const bounds = L.latLngBounds(pts);
+      map.fitBounds(bounds, {padding:[30,30], maxZoom:14});
+    }
   }catch(e){
     document.getElementById("tbl-body").innerHTML="<div style=\"padding:24px;text-align:center;color:#dc2626;font-size:12px\">could not load data — try refreshing.</div>";
   }
