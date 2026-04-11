@@ -295,9 +295,9 @@ function buildParcels(geojson){
   parcelLayer=L.geoJSON(geojson,{
     style:feat=>{
       const r=apnMap[String(feat.properties.id||"")];
-      if(!r) return{fillColor:"transparent",color:"rgba(0,0,0,0.06)",weight:0.5,fillOpacity:0};
+      if(!r) return{fillColor:"transparent",color:"rgba(0,0,0,0.18)",weight:0.7,fillOpacity:0};
       const c=scolor(r.status);
-      return{fillColor:c,color:c,weight:1,fillOpacity:0.22,opacity:0.7};
+      return{fillColor:c,color:c,weight:1.5,fillOpacity:0.28,opacity:0.85};
     },
     onEachFeature:(feat,layer)=>{
       const r=apnMap[String(feat.properties.id||"")];
@@ -410,6 +410,8 @@ function applyFilters(){
   const cap=document.getElementById("f-cap").value;
   const sta=document.getElementById("f-stat").value;
   filtered=allParcels.filter(p=>{
+    const sk=skey(p.status);
+    if(!sk||sk==="unknown"||sk==="") return false;
     if(cap&&p.ambassador!==cap) return false;
     if(sta&&(p.status||"unknown")!==sta) return false;
     if(q&&![p.apn,p.address,p.ambassador,p.status,p.notes].some(v=>(v||"").toLowerCase().includes(q))) return false;
